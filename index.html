@@ -1,0 +1,222 @@
+<!doctype html>
+<html lang="fr-CA">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>L'Épicerie Girard</title>
+<meta name="theme-color" content="#1c1c1e">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Épicerie">
+<link rel="stylesheet" href="style.css?v=2">
+</head>
+<body>
+
+<!-- ÉCRAN D'ENTRÉE : vrai formulaire de connexion pour que l'iPhone offre d'enregistrer le code dans le trousseau iCloud -->
+<div id="login" class="gut" hidden><div class="inner login">
+  <img class="logo" src="icon-192.png" alt="">
+  <h1>L'Épicerie Girard</h1>
+  <p class="lead">La liste d'épicerie de la famille, sur tous vos téléphones.</p>
+  <form id="joinForm" class="card form" method="post" action="#">
+    <label for="joinUser">Nom de famille</label>
+    <input class="f" id="joinUser" name="username" autocomplete="username" autocapitalize="words" autocorrect="off" spellcheck="false" placeholder="Ex. : Girard">
+    <label for="joinCode">Code de famille</label>
+    <input class="f" id="joinCode" name="password" type="password" autocomplete="current-password" required placeholder="Le code que la famille partage">
+    <button class="btn pri" type="submit">Entrer</button>
+    <p class="err" id="joinErr" hidden></p>
+  </form>
+  <details class="card newfam">
+    <summary>Première fois? Créer la liste de la famille</summary>
+    <form id="createForm" class="form" method="post" action="#">
+      <label for="famName">Nom de famille</label>
+      <input class="f" id="famName" name="username" autocomplete="username" autocapitalize="words" autocorrect="off" spellcheck="false" placeholder="Ex. : Girard">
+      <label for="newCode">Code de famille</label>
+      <input class="f" id="newCode" name="new-password" type="password" autocomplete="new-password" required minlength="8" placeholder="Au moins 8 caractères">
+      <p class="hint">Laisse l'iPhone proposer un mot de passe fort et l'enregistrer. Partage-le ensuite à la famille avec un groupe de mots de passe partagés iCloud : personne n'a rien à retenir.</p>
+      <button class="btn pri" type="submit">Créer notre liste</button>
+      <p class="err" id="createErr" hidden></p>
+    </form>
+  </details>
+</div></div>
+
+<!-- APP -->
+<div id="app" hidden>
+  <div class="gut"><div class="inner head">
+    <header>
+      <div class="hrow"><h1 id="famTitle">L'Épicerie Girard</h1><button class="btn sm ghost" id="logout" type="button">Changer de famille</button></div>
+      <p id="count">Chargement…</p>
+      <div class="bar"><span id="prog"></span></div>
+    </header>
+    <div class="note warn" id="offline" hidden>Pas de connexion. Les changements vont revenir quand Internet revient.</div>
+  </div></div>
+
+  <nav class="tabs gut" role="tablist" aria-label="Sections"><div class="inner">
+    <button role="tab" aria-selected="true" data-tab="list">La liste</button>
+    <button role="tab" aria-selected="false" data-tab="inv">Avant de partir</button>
+    <button role="tab" aria-selected="false" data-tab="meals">Repas</button>
+    <button role="tab" aria-selected="false" data-tab="deals">Spéciaux</button>
+  </div></nav>
+
+  <main class="gut"><div class="inner">
+    <div id="p-list" role="tabpanel">
+      <div id="list"></div>
+      <div class="row" id="clearZone" hidden>
+        <button class="btn" type="button" id="clearBtn">Retirer ce qui est dans le panier</button>
+        <span id="confirm" hidden>
+          <button class="btn warnb" type="button" id="yes">Oui, retirer</button>
+          <button class="btn" type="button" id="no">Annuler</button>
+        </span>
+      </div>
+    </div>
+
+    <div id="p-inv" role="tabpanel" hidden>
+      <div class="note ok">Fais le tour de la maison. Ce que tu marques <b>« Manque »</b> s'ajoute tout seul à la liste.</div>
+      <div id="inv"></div>
+      <div class="row"><button class="btn" type="button" id="invReset">Recommencer la vérification</button></div>
+      <section>
+        <h2><span>Ajouter un produit de base</span></h2>
+        <form class="inline" id="stapleForm" autocomplete="off">
+          <input class="f" id="stapleName" placeholder="Ex. : café, beurre d'arachide…" aria-label="Produit de base" required>
+          <button class="btn scanb" type="button" id="stapleScan" aria-label="Scanner un code-barres">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M3 7V4h3M21 7V4h-3M3 17v3h3M21 17v3h-3M7 8v8M10 8v8M13 8v8M16 8v5M16 15v1"/></svg>
+          </button>
+          <button class="btn pri" type="submit">Ajouter</button>
+        </form>
+        <div class="sugg" id="sugg" hidden></div>
+        <p class="hint" style="margin-top:8px">Tape au moins 3 lettres pour voir des marques, ou scanne le code-barres.</p>
+      </section>
+    </div>
+
+    <div id="p-meals" role="tabpanel" hidden>
+      <div class="row"><button class="btn pri" type="button" id="newMeal">+ Nouveau repas</button></div>
+      <form class="card form" id="mealForm" hidden autocomplete="off">
+        <label for="mName">Nom du repas</label>
+        <input class="f" id="mName" placeholder="Ex. : Spaghetti sauce à la viande" required>
+        <label for="mIng">Ingrédients</label>
+        <p class="hint">Un par ligne. La quantité après une virgule : « Bœuf haché, 1 lb ».</p>
+        <textarea class="f" id="mIng" placeholder="Bœuf haché, 1 lb&#10;Spaghetti, 1 paquet&#10;Sauce tomate, 2 boîtes"></textarea>
+        <label for="mRec">Recette</label>
+        <textarea class="f" id="mRec" placeholder="Les étapes, comme tu les ferais…"></textarea>
+        <div class="row tight">
+          <button class="btn pri" type="submit">Enregistrer le repas</button>
+          <button class="btn" type="button" id="cancelMeal">Annuler</button>
+        </div>
+      </form>
+      <div id="meals"></div>
+    </div>
+    <div id="p-deals" role="tabpanel" hidden>
+      <div class="card deals-top">
+        <p class="hint" style="margin:0">Les circulaires de cette semaine chez <b id="storeNames"></b>, pour les articles de ta liste.</p>
+        <div class="row tight">
+          <button class="btn pri" type="button" id="dealsGo">Vérifier les spéciaux</button>
+          <span class="hint" id="dealsStatus" style="margin:0"></span>
+        </div>
+        <form class="inline" id="dealSearch" autocomplete="off">
+          <input class="f" id="dealQ" placeholder="Ou cherche un produit : poulet, café…" aria-label="Chercher un spécial">
+          <button class="btn" type="submit">Chercher</button>
+        </form>
+        <p class="hint region">Région des circulaires : <b id="regionTxt"></b> · <button type="button" class="linkbtn" id="regionEdit">changer</button></p>
+      </div>
+      <div class="card deals-top">
+        <p class="hint" style="margin:0"><b>Feuilleter une circulaire au complet</b></p>
+        <div class="flyer-btns" id="flyerBtns"></div>
+      </div>
+      <div id="flyer" hidden></div>
+      <div id="dealsSummary"></div>
+      <div id="deals"></div>
+      <p class="hint center" style="margin-top:24px">Prix tirés des circulaires publiées sur Flipp. Vérifie en magasin : un format ou une variété peut différer.</p>
+    </div>
+  </div></main>
+
+  <div class="add gut" id="addBar"><div class="inner">
+    <form id="form" autocomplete="off">
+      <input id="item" placeholder="Ajouter un article…" aria-label="Article" required>
+      <input id="qty" placeholder="Qté" aria-label="Quantité">
+      <select id="cat" aria-label="Catégorie"></select>
+      <button class="cam" type="button" id="scanBtn" aria-label="Scanner un code-barres">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M3 7V4h3M21 7V4h-3M3 17v3h3M21 17v3h-3M7 8v8M10 8v8M13 8v8M16 8v5M16 15v1"/></svg>
+      </button>
+      <button class="go" type="submit" aria-label="Ajouter">+</button>
+    </form>
+  </div></div>
+</div>
+
+<!-- SCANNER -->
+<div class="sheet" id="scanSheet" hidden role="dialog" aria-modal="true" aria-label="Scanner un code-barres">
+  <div class="sheet-in">
+    <div class="sheet-head"><b>Pointe le code-barres</b><button class="btn sm" type="button" id="scanClose">Fermer</button></div>
+    <div class="cam-box">
+      <video id="scanVideo" playsinline muted autoplay></video>
+      <div id="reader"></div>
+      <div class="aim" aria-hidden="true"><span></span></div>
+    </div>
+    <div class="cam-tools">
+      <button class="btn sm" type="button" id="torchBtn" hidden aria-pressed="false">💡 Lampe</button>
+      <label class="zoom" id="zoomWrap" hidden>Zoom <input type="range" id="zoomRange" min="1" max="4" step="0.1" value="2"></label>
+    </div>
+    <p class="hint center" id="scanMsg">Tiens le produit à environ 20 cm. Le code se lit tout seul.</p>
+    <form class="inline" id="manualForm" autocomplete="off">
+      <input class="f" id="manualCode" inputmode="numeric" pattern="[0-9]{8,14}" placeholder="Ou tape les chiffres sous le code" aria-label="Chiffres du code-barres">
+      <button class="btn" type="submit">OK</button>
+    </form>
+  </div>
+</div>
+
+<!-- CONFIRMATION APRÈS SCAN -->
+<div class="sheet" id="foundSheet" hidden role="dialog" aria-modal="true" aria-label="Produit trouvé">
+  <form class="sheet-in form" id="foundForm" autocomplete="off">
+    <div class="sheet-head"><b id="foundTitle">Produit trouvé</b></div>
+    <p class="hint" id="foundHint"></p>
+    <label for="fName" id="fNameLbl">Nom sur la liste</label>
+    <input class="f" id="fName" required>
+    <div class="two">
+      <div id="fQtyWrap"><label for="fQty">Qté</label><input class="f" id="fQty" placeholder="Optionnel"></div>
+      <div><label for="fCat">Catégorie</label><select class="f" id="fCat"></select></div>
+    </div>
+    <div class="row tight">
+      <button class="btn pri" type="submit" id="fGo">Ajouter à la liste</button>
+      <button class="btn" type="button" id="foundAgain">Scanner un autre</button>
+      <button class="btn ghost" type="button" id="foundCancel">Annuler</button>
+    </div>
+  </form>
+</div>
+
+<!-- QUANTITÉ -->
+<div class="sheet" id="qtySheet" hidden role="dialog" aria-modal="true" aria-labelledby="qName">
+  <form class="sheet-in form" id="qtyForm" autocomplete="off">
+    <div class="sheet-head"><b id="qName"></b></div>
+    <label for="qIn">Quantité</label>
+    <div class="qrow">
+      <button class="btn qstep" type="button" id="qMinus" aria-label="Un de moins">−</button>
+      <input class="f" id="qIn" placeholder="Ex. : 2, 1 lb, 1 paquet">
+      <button class="btn qstep" type="button" id="qPlus" aria-label="Un de plus">+</button>
+    </div>
+    <div class="row tight">
+      <button class="btn pri" type="submit">Enregistrer</button>
+      <button class="btn" type="button" id="qClear">Effacer</button>
+      <button class="btn ghost" type="button" id="qCancel">Annuler</button>
+    </div>
+  </form>
+</div>
+
+<!-- FICHE AGRANDIE D'UN SPÉCIAL -->
+<div class="sheet" id="zoomSheet" hidden role="dialog" aria-modal="true" aria-label="Détail du spécial">
+  <div class="sheet-in zoom-in">
+    <div class="sheet-head"><span id="zStore" class="chip"></span><button class="btn sm" type="button" id="zClose">Fermer</button></div>
+    <img id="zImg" class="zimg" alt="">
+    <h2 class="zname" id="zName"></h2>
+    <p class="zprice" id="zPrice"></p>
+    <p class="hint" id="zMeta"></p>
+    <div class="row tight"><button class="btn pri" type="button" id="zAdd">Ajouter à la liste</button></div>
+  </div>
+</div>
+
+<div class="toast" id="toast" hidden></div>
+
+<script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+<script src="app.js?v=2"></script>
+</body>
+</html>
