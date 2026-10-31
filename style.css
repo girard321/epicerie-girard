@@ -27,8 +27,8 @@ header p{margin:4px 0 0;color:var(--muted);font-variant-numeric:tabular-nums}
 
 /* Onglets */
 .tabs{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--bg);padding-block:10px;border-bottom:1px solid var(--line)}
-.tabs .inner{display:grid;grid-template-columns:repeat(4,1fr);gap:4px;background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:4px}
-.tabs button{font:inherit;font-weight:700;font-size:.84rem;line-height:1.15;border:0;border-radius:10px;min-height:48px;padding:8px 4px;background:none;color:var(--muted);cursor:pointer}
+.tabs .inner{display:grid;grid-template-columns:repeat(5,1fr);gap:4px;background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:4px}
+.tabs button{font:inherit;font-weight:700;font-size:.8rem;line-height:1.15;border:0;border-radius:10px;min-height:48px;padding:8px 4px;background:none;color:var(--muted);cursor:pointer}
 .tabs button[aria-selected="true"]{background:var(--green);color:var(--green-ink)}
 button:focus-visible,input:focus-visible,select:focus-visible,summary:focus-visible{outline:3px solid var(--green);outline-offset:2px}
 
@@ -227,3 +227,54 @@ li.done .qtyb{opacity:.5}
 .where.fini .chip{opacity:.5}
 li.done .where{opacity:.6}
 .name>.where{display:flex;width:fit-content}
+
+/* Semaine */
+.sec-head{display:flex;justify-content:space-between;align-items:baseline;gap:8px;margin:24px 0 8px}
+.sec-head h2{margin:0;font-size:1.15rem;color:var(--ink)}
+.sec-head .hint{margin:0;flex:none}
+.filters{display:flex;gap:6px;flex-wrap:wrap;margin-top:12px}
+.pill{font:inherit;font-size:.85rem;font-weight:700;border-radius:999px;min-height:40px;padding:6px 13px;border:1px solid var(--line-strong);background:var(--field);color:var(--muted);cursor:pointer}
+.pill.on{background:var(--green-soft);border-color:var(--green);color:var(--green)}
+.off{display:inline-block;font-size:.74rem;font-weight:800;border-radius:6px;padding:2px 6px;background:var(--badge);color:var(--badge-ink);margin-left:6px;white-space:nowrap}
+.bestseen{display:inline-block;font-size:.72rem;font-weight:700;border-radius:6px;padding:2px 6px;border:1px solid var(--price);color:var(--price);margin-top:3px}
+.deal .dprice small{display:block;font-size:.72rem;color:var(--muted);font-weight:600}
+.checks{display:flex;flex-wrap:wrap;gap:6px}
+.tag{display:inline-flex;align-items:center;gap:2px;font:inherit;font-size:.9rem;border-radius:999px;padding:4px 4px 4px 12px;background:var(--field);border:1px solid var(--line-strong);color:var(--ink)}
+.tag button{font:inherit;border:0;background:none;color:var(--muted);width:32px;height:32px;border-radius:999px;cursor:pointer;font-size:1.1rem}
+.idea{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:14px;margin-top:10px}
+.idea h3{margin:0;font-size:1.05rem;overflow-wrap:anywhere}
+.idea .meta{color:var(--muted);font-size:.85rem;margin-top:2px}
+.idea .why{margin-top:8px;display:grid;gap:6px}
+.idea .why div{font-size:.88rem;overflow-wrap:anywhere}
+.idea .why b{color:var(--price)}
+.idea .why i{font-style:normal;color:var(--muted)}
+.idea .row{margin-top:12px}
+.week{display:grid;gap:8px}
+.day{display:grid;grid-template-columns:64px 1fr auto;align-items:center;gap:10px;background:var(--surface);border:1px solid var(--line);border-radius:14px;min-height:64px;padding:8px 8px 8px 14px}
+.day .d{font-weight:800;color:var(--green);line-height:1.15}
+.day .d small{display:block;color:var(--muted);font-weight:600;font-size:.74rem}
+.day .m{min-width:0;overflow-wrap:anywhere}
+.day .m b{display:block;font-size:.98rem}
+.day .m span{font-size:.8rem;color:var(--muted)}
+.day .m .sp{color:var(--price);font-weight:700}
+.day.vide .m{color:var(--muted)}
+.stack{display:grid;gap:8px}
+.gen{display:grid;gap:8px;margin-top:12px}
+.gen .btn{width:100%}
+.quota{font-size:.85rem;color:var(--muted);text-align:center}
+.idea details{margin-top:10px}
+.idea summary{color:var(--green);font-weight:700;cursor:pointer;min-height:32px}
+.idea ol,.idea ul{margin:6px 0 0;padding-left:20px;font-size:.92rem}
+.idea li{padding-block:2px}
+.idea .ok{color:var(--green);font-weight:700;font-size:.88rem}
+.stack .btn{width:100%}
+.sum{background:var(--surface);border:1px solid var(--green);border-radius:14px;padding:14px;margin-top:14px}
+.sum .big{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}
+.sum .big div{background:var(--field);border-radius:10px;padding:10px;text-align:center}
+.sum .big b{display:block;font-size:1.4rem;color:var(--price);font-variant-numeric:tabular-nums}
+.sum .big .eco b{color:var(--green)}
+.sum .big span{font-size:.78rem;color:var(--muted)}
+.sum p{margin:10px 0 0;font-size:.88rem;color:var(--muted)}
+.pickday{display:grid;gap:8px;margin-top:12px}
+.pickday .btn{display:flex;justify-content:space-between;align-items:center;gap:10px;text-align:left;width:100%}
+.pickday .btn span{color:var(--muted);font-weight:400;font-size:.85rem;overflow-wrap:anywhere;text-align:right}

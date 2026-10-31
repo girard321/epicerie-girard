@@ -84,6 +84,8 @@ async function act(action, args, optimistic, fn = api){
 // deal (optionnel) = { store, label, price, to } : retient où l'acheter en spécial
 async function addToList(name, qty, cat, meal, deal){
   const dup = data.items.find(i => !i.done && norm(i.name) === norm(name));
+  // Le serveur compare sans tenir compte des majuscules mais AVEC les accents : on lui donne le nom exact déjà sur la liste
+  if (dup) name = dup.name;
   if (deal){
     const r = await act("item_add", { name, qty: qty || "", cat: cat || guess(name), deal }, () => {
       if (dup) dup.deal = deal;
@@ -147,13 +149,13 @@ function renderHead(){
 function renderList(){
   const its = data.items, done = its.filter(i => i.done).length;
   $("clearZone").hidden = !done;
-  if (!loaded){ $("list").innerHTML = ""; return; }
-  if (!its.length){ $("list").innerHTML = `<p class="empty">Ajoute un article en bas, scanne un code-barres,<br>ou passe par « Avant de partir » et « Repas ».</p>`; return; }
+  if (!loaded){ setHTML("list", ""); return; }
+  if (!its.length){ setHTML("list", `<p class="empty">Ajoute un article en bas, scanne un code-barres,<br>ou passe par « Avant de partir » et « Repas ».</p>`); return; }
   const pm = plannedMeals();
   const planned = pm.length ? `<section class="planned"><h2><span>Repas choisis</span><span>${pm.length}</span></h2><ul class="box">${pm.map(p => `
     <li><span class="name"><b>${esc(p.name)}</b><span class="qty">${p.left ? `${p.left} ingrédient${p.left>1?"s":""} à acheter` : "tout est dans le panier ✓"}</span></span>
     <button class="btn sm ghost" type="button" data-unplan="${esc(p.id)}">Retirer</button></li>`).join("")}</ul></section>` : "";
-  $("list").innerHTML = planned + CATS.filter(c => its.some(i => (CATS.includes(i.cat) ? i.cat : "Autre") === c)).map(c => {
+  setHTML("list", planned + CATS.filter(c => its.some(i => (CATS.includes(i.cat) ? i.cat : "Autre") === c)).map(c => {
     const g = its.filter(i => (CATS.includes(i.cat) ? i.cat : "Autre") === c).sort((a,b) => a.done - b.done);
     const left = g.filter(i => !i.done).length;
     return `<section><h2><span>${c}</span><span>${left || "✓"}</span></h2><ul class="box">${g.map(i => `
@@ -161,42 +163,50 @@ function renderList(){
       <span class="name">${esc(i.name)}${dealTag(i)}${mealsOf(i).length ? `<span class="for">pour : ${mealsOf(i).map(m => esc((data.meals.find(x => x.id === m.id) || m).name)).join(", ")}</span>` : ""}</span></label>
       <button class="qtyb ${i.qty ? "" : "vide"}" type="button" data-q="${esc(i.id)}" aria-label="Quantité de ${esc(i.name)} : ${esc(i.qty || "aucune")}">${i.qty ? esc(i.qty) : "Qté"}</button>
       <button class="del" type="button" data-del="${esc(i.id)}" aria-label="Enlever ${esc(i.name)}">×</button></li>`).join("")}</ul></section>`;
-  }).join("");
+  }).join(""));
 }
 function renderInv(){
-  if (!loaded){ $("inv").innerHTML = ""; return; }
+  if (!loaded){ setHTML("inv", ""); return; }
   const st = [...data.staples].sort((a,b) => CATS.indexOf(a.cat) - CATS.indexOf(b.cat) || norm(a.name).localeCompare(norm(b.name)));
-  if (!st.length){ $("inv").innerHTML = `<p class="empty">Ajoute les produits que tu veux vérifier avant chaque épicerie.</p>`; return; }
+  if (!st.length){ setHTML("inv", `<p class="empty">Ajoute les produits que tu veux vérifier avant chaque épicerie.</p>`); return; }
   const left = st.filter(s => !s.status).length;
-  $("inv").innerHTML = `<section><h2><span>Produits de base</span><span>${left ? left + " à vérifier" : "Vérification finie ✓"}</span></h2><ul class="box inv">${st.map(s => `
+  setHTML("inv", `<section><h2><span>Produits de base</span><span>${left ? left + " à vérifier" : "Vérification finie ✓"}</span></h2><ul class="box inv">${st.map(s => `
     <li><span class="name">${esc(s.name)}</span><span class="seg">
       <button type="button" class="have" data-st="${esc(s.id)}" data-v="ok" aria-pressed="${s.status === "ok"}">J'en ai</button>
       <button type="button" class="need" data-st="${esc(s.id)}" data-v="manque" aria-pressed="${s.status === "manque"}">Manque</button>
-    </span><button class="del" type="button" data-sdel="${esc(s.id)}" aria-label="Retirer ${esc(s.name)} des produits de base">×</button></li>`).join("")}</ul></section>`;
+    </span><button class="del" type="button" data-sdel="${esc(s.id)}" aria-label="Retirer ${esc(s.name)} des produits de base">×</button></li>`).join("")}</ul></section>`);
 }
 function renderMeals(){
-  if (!loaded){ $("meals").innerHTML = ""; return; }
+  if (!loaded){ setHTML("meals", ""); return; }
   const open = new Set([...document.querySelectorAll(".meal[open]")].map(d => d.dataset.id));
   const ms = [...data.meals].sort((a,b) => norm(a.name).localeCompare(norm(b.name)));
-  if (!ms.length){ $("meals").innerHTML = `<p class="empty">Ta banque de repas est vide.<br>Appuie sur « Nouveau repas » pour commencer.</p>`; return; }
+  if (!ms.length){ setHTML("meals", `<p class="empty">Ta banque de repas est vide.<br>Appuie sur « Nouveau repas » pour commencer.</p>`); return; }
   const onList = new Set(plannedMeals().map(p => p.id));
-  $("meals").innerHTML = ms.map(m => { const ing = Array.isArray(m.ingredients) ? m.ingredients : [];
+  setHTML("meals", ms.map(m => { const ing = Array.isArray(m.ingredients) ? m.ingredients : [];
     return `<details class="meal" data-id="${esc(m.id)}" ${open.has(m.id) ? "open" : ""}><summary><b>${esc(m.name)}</b><span>${onList.has(m.id) ? `<i class="onlist">Sur la liste</i>` : ""}${ing.length} ingrédient${ing.length>1?"s":""}</span></summary><div class="body">
       <div class="row" style="margin-top:14px"><button class="btn pri sm" type="button" data-cook="${esc(m.id)}">Ajouter les ingrédients à la liste</button></div>
       <h3>Ingrédients</h3><ul>${ing.map((x, k) => { const h = atHome(x.name);
         return `<li class="${h ? "home" : ""}">${esc(x.name)}${x.qty ? ` <span class="qty">${esc(x.qty)}</span>` : ""}${h ? ` <span class="athome">à la maison</span> <button class="linkbtn" type="button" data-anyway="${esc(m.id)}" data-k="${k}">ajouter quand même</button>` : ""}</li>`; }).join("") || "<li>Aucun</li>"}</ul>
       ${m.recipe ? `<h3>Recette</h3><p class="recipe">${esc(m.recipe)}</p>` : ""}
       <div class="row"><button class="btn sm" type="button" data-medit="${esc(m.id)}">Modifier</button><button class="btn sm warnb" type="button" data-mdel="${esc(m.id)}">Supprimer</button></div>
-    </div></details>`; }).join("");
+    </div></details>`; }).join(""));
 }
 function renderAll(){
   renderHead(); renderList(); renderInv();
   if (!document.activeElement || !$("p-meals").contains(document.activeElement)) renderMeals();
+  if (curTab === "week") renderMySpecial();
+}
+
+// Bouton à deux touches : la 1re arme (5 secondes), la 2e confirme
+function arm(b, ask, label){
+  b.dataset.sure = "1"; b.textContent = ask; b.classList.add("warnb");
+  setTimeout(() => { if (b.isConnected && b.dataset.sure){ delete b.dataset.sure; b.textContent = label; if (label !== "Supprimer") b.classList.remove("warnb"); } }, 5000);
 }
 
 /* ---------- Entrée / sortie ---------- */
 function showApp(){ $("login").hidden = true; $("app").hidden = false; loaded = false; renderAll(); refresh(); }
 function logout(msg){ setCode(""); code = ""; $("app").hidden = true; $("login").hidden = false;
+  if (typeof resetWeek === "function") resetWeek();
   // Le nom de famille sert de « nom d'utilisateur » pour le trousseau iCloud; le code n'est jamais réaffiché
   if (data.family && !$("joinUser").value) $("joinUser").value = data.family; $("joinCode").value = "";
   if (msg){ $("joinErr").textContent = msg; $("joinErr").hidden = false; } }
@@ -220,8 +230,9 @@ $("logout").onclick = () => logout();
 document.querySelector(".tabs").addEventListener("click", e => {
   const t = e.target.dataset.tab; if (!t) return; curTab = t;
   document.querySelectorAll(".tabs button").forEach(b => b.setAttribute("aria-selected", b.dataset.tab === t));
-  ["list","inv","meals","deals"].forEach(k => $("p-" + k).hidden = k !== t);
+  ["list","inv","meals","week","deals"].forEach(k => $("p-" + k).hidden = k !== t);
   $("addBar").hidden = t !== "list"; window.scrollTo(0, 0);
+  if (t === "week"){ showBonsDeals(); loadPlan(); loadIaQuota(); renderIdeas(); }
 });
 
 /* ---------- Liste ---------- */
@@ -239,7 +250,7 @@ $("list").addEventListener("change", e => { const id = e.target.dataset.id; if (
 $("list").addEventListener("click", e => {
   const up = e.target.dataset.unplan;
   if (up){
-    if (!e.target.dataset.sure){ e.target.dataset.sure = "1"; e.target.textContent = "Retirer ses ingrédients?"; e.target.classList.add("warnb"); return; }
+    if (!e.target.dataset.sure){ arm(e.target, "Retirer ses ingrédients?", "Retirer"); return; }
     const p = plannedMeals().find(x => x.id === up); const meal = { id: up, name: p ? p.name : "" };
     act("unplan", { meal }, () => {
       data.items.forEach(i => { if (!i.done) i.meals = mealsOf(i).filter(m => m.id !== up); });
@@ -352,7 +363,7 @@ $("meals").addEventListener("click", async e => {
     toast((await addToList(x.name, x.qty, x.cat, { id: m.id, name: m.name })) ? `${x.name} ajouté à la liste` : `${x.name} est déjà sur la liste`); }
   if (t.medit){ openForm(data.meals.find(x => x.id === t.medit)); window.scrollTo(0, 0); }
   if (t.mdel){ if (e.target.dataset.sure){ act("meal_del", { id: t.mdel }, () => { data.meals = data.meals.filter(x => x.id !== t.mdel); }); }
-    else { e.target.dataset.sure = "1"; e.target.textContent = "Appuie encore pour supprimer"; } }
+    else arm(e.target, "Appuie encore pour supprimer", "Supprimer"); }
 });
 
 /* ---------- Scanner de code-barres ---------- */
@@ -595,8 +606,10 @@ const tidy = n => { let s = String(n || "").split(" | ")[0].trim();
 const httpsImg = u => u ? String(u).replace(/^http:/, "https:") : "";
 async function loadFlyer(st){
   const key = region + "|" + st.key; if (flyerCache.has(key)) return flyerCache.get(key);
-  const d = await fetchJSON(`https://backflipp.wishabi.com/flipp/data?locale=fr-ca&postal_code=${region}`, 10000);
-  if (!d) return null;
+  // La liste des circulaires de la région ne se charge qu'une fois pour tous les magasins
+  if (!flyerCache.has(region)) flyerCache.set(region, fetchJSON(`https://backflipp.wishabi.com/flipp/data?locale=fr-ca&postal_code=${region}`, 10000));
+  const d = await flyerCache.get(region);
+  if (!d){ flyerCache.delete(region); return null; }
   const now = Date.now();
   const fls = (d.flyers || []).filter(f => st.re.test(f.merchant || "") && (!f.valid_to || Date.parse(f.valid_to) >= now));
   // Certains magasins ont plusieurs circulaires d'épicerie (ex. Metro : la vraie + un petit cahier thématique;
@@ -611,10 +624,11 @@ async function loadFlyer(st){
   if (!j) return null;
   const items = (j.items || []).filter(i => i.display_type === 1 && i.name).map(i => {
     const name = tidy(i.name);
-    return { name, cat: guess(name), price: i.price ? Number(i.price) : null, img: httpsImg(i.cutout_image_url), to: i.valid_to || f.valid_to };
+    return { name, raw: i.name, cat: guess(name), price: Number.isFinite(Number(i.price)) && Number(i.price) > 0 ? Number(i.price) : null, discount: Number(i.discount) || 0,
+      img: httpsImg(i.cutout_image_url), from: i.valid_from || f.valid_from, to: i.valid_to || f.valid_to };
   });
   const out = { store: st, title: f.name || "", from: f.valid_from, to: f.valid_to, items };
-  flyerCache.set(key, out); return out;
+  flyerCache.set(key, out); savePrices(out); return out;
 }
 function flyerRow(it, k){
   const onList = data.items.some(i => !i.done && norm(i.name) === norm(it.name.split(",")[0]));
@@ -729,3 +743,398 @@ $("qtySheet").addEventListener("click", e => { if (e.target === $("qtySheet")) c
 $("qtyForm").addEventListener("submit", e => { e.preventDefault(); if (!qtyId) return;
   const id = qtyId, q = $("qIn").value.trim(); closeQty();
   act("qty", { id, qty: q }, () => { const it = data.items.find(i => i.id === id); if (it) it.qty = q; }, apiItem); });
+
+/* ---------- Semaine : les bons deals ---------- */
+const apiPrix = (action, args = {}) => rpc("api_prix", { p_code: code, p_action: action, p_args: args });
+// Nom normalisé pour l'historique des prix (règle décrite dans LISEZ-MOI.md) : partie française seulement
+// (avant « | »), sans marque entre parenthèses, minuscules, sans accents, chaque mot au singulier
+const normProduct = n => words(String(n || "").split(" | ")[0].replace(/\([^)]*\)/g, " ")).join(" ");
+// Un aliment qui fait un repas : viande, volaille, poisson, fruits de mer, fruits et légumes frais, fromage, pâtes, riz.
+// Jamais de grignotines, boissons, sucreries, produits préparés ou ménagers.
+const DEAL_OK = /\b(poulet|boeuf|porc|veau|agneau|dinde|jambon|saucisse|bacon|cote|roti|steak|bifteck|filet|haut de cuisse|pilon|poitrine|hache|osso|saumon|truite|morue|tilapia|sebaste|aiglefin|crevette|poisson|petoncle|moule|homard|crabe|tomate|carotte|pomme|poire|banane|orange|clementine|nectarine|peche|prune|kiwi|raisin|fraise|bleuet|framboise|brocoli|chou|laitue|poivron|oignon|patate|courge|champignon|pleurote|celeri|concombre|epinard|haricot|avocat|citron|lime|mangue|ananas|melon|cantaloup|rutabaga|navet|fenouil|courgette|zucchini|asperge|poireau|fromage|cheddar|mozzarella|parmesan|feta|brie|pates?|spaghetti|penne|fusilli|linguine|lasagne|macaroni|riz|cotelette)(e|s|x|es)?\b/;
+const DEAL_NO = /\b(chips|croustille|biscuit|gateau|bonbon|chocolat|liqueur|boisson|jus|biere|vin|gelee|saindoux|frite|surgele|nectar|smoothie|craquelin|barre|creme glacee|savon|detergent|papier|sauce|vinaigrette|trempette|collation|muffin|cereale|pizza|pane|compote|confiture|soupe|salade de|simili|croquette|pepite|sandwich|tarte|pate a|pate de tomate|pate de cari|bouillon|fond de|bouchee|nourriture|chien|chat)(e|s|x|es)?\b/;
+const isMealFood = raw => { const n = norm(String(raw || "").split(" | ")[0]); return DEAL_OK.test(n) && !DEAL_NO.test(n); };
+// Préférences de la famille (dans la base, partagées) : personnes, n'aime pas, allergies, temps max, magasins
+const apiPrefs = (action, args = {}) => rpc("api_prefs", { p_code: code, p_action: action, p_args: args });
+let prefs = { people: 4, dislikes: [], allergies: [], max_minutes: 45, stores: ["metro", "iga"] }, prefsLoaded = false;
+let myStores = new Set(prefs.stores);
+async function loadPrefs(){
+  try { const r = await apiPrefs("get"); if (r.ok){ prefs = r.prefs; myStores = new Set(prefs.stores); prefsLoaded = true; } } catch(e){}
+}
+// fields = seulement ce qui a changé (le serveur ne touche pas aux autres champs)
+let prefsSeq = 0;
+async function savePrefs(fields){
+  if (!prefsLoaded){ await loadPrefs(); if (!prefsLoaded){ toast("Pas de connexion. Réessaie."); return false; } }
+  const my = ++prefsSeq;
+  try { const r = await apiPrefs("save", fields);
+    if (r.ok){ if (my === prefsSeq){ prefs = r.prefs; myStores = new Set(prefs.stores); } return true; } } catch(e){}
+  toast("Pas pu enregistrer. Réessaie."); return false;
+}
+const savedFlyers = new Set();
+// Chaque circulaire chargée nourrit l'historique (une fois par appareil et par circulaire)
+function savePrices(fl){
+  if (!code || !fl || fl.none) return;
+  const k = fl.store.key + "|" + fl.from; if (savedFlyers.has(k)) return; savedFlyers.add(k);
+  const seen = String(fl.from || "").slice(0, 10), done = new Set(), prices = [];
+  for (const it of fl.items){
+    if (it.price == null || !isMealFood(it.raw)) continue;
+    const product = normProduct(it.raw); if (!product || done.has(product)) continue; done.add(product);
+    prices.push({ product, store: fl.store.key, price: it.price.toFixed(2), seen_on: seen });
+  }
+  if (prices.length) apiPrix("save", { prices }).catch(() => { savedFlyers.delete(k); });
+}
+// Genre d'aliment affiché sous un deal (le premier qui correspond gagne)
+const DEAL_KIND = [
+  [/\b(saumon|truite|morue|tilapia|sebaste|aiglefin|crevette|poisson|petoncle|moule|homard|crabe)/, "Poissons et fruits de mer"],
+  [/\b(poulet|dinde)/, "Volaille"],
+  [/\b(fromage|cheddar|mozzarella|parmesan|feta|brie)/, "Fromages"],
+  [/\b(pates?|spaghetti|penne|fusilli|linguine|lasagne|macaroni|riz)\b/, "Pâtes et riz"],
+  [/\b(boeuf|porc|veau|agneau|jambon|saucisse|bacon|cote|roti|steak|bifteck|filet|haut de cuisse|pilon|poitrine|hache|osso)/, "Viandes"],
+  [/\b(pommes? de terre|patate)/, "Légumes"],
+  [/\b(pomme|poire|banane|orange|clementine|nectarine|peche|prune|kiwi|raisin|fraise|bleuet|framboise|avocat|citron|lime|mangue|ananas|melon|cantaloup)/, "Fruits"],
+  [/./, "Légumes"]
+];
+const dealKind = raw => { const n = norm(String(raw || "").split(" | ")[0]); return DEAL_KIND.find(([re]) => re.test(n))[1]; };
+let bdState = { key: "", list: null, all: false };
+// Flipp ne donne pas l'unité (/lb, /100 g) dans la circulaire complète : on la cherche dans sa recherche
+async function findUnit(d){
+  const j = await fetchJSON(`https://backflipp.wishabi.com/flipp/items/search?locale=fr-ca&postal_code=${region}&q=${encodeURIComponent(cleanQuery(d.name).split(",")[0].slice(0, 40))}`, 8000);
+  const hit = j && (j.items || []).find(i => d.store.re.test(i.merchant_name || "") && Math.abs(Number(i.current_price) - d.price) < 0.005);
+  return hit ? String(hit.post_price_text || "").trim() : "";
+}
+async function loadBonsDeals(){
+  const stores = STORES.filter(s => myStores.has(s.key));
+  const fls = (await Promise.all(stores.map(loadFlyer))).filter(f => f && !f.none);
+  if (!fls.length && stores.length) return null;
+  const best = new Map();
+  for (const fl of fls) for (const it of fl.items){
+    if (it.price == null || !isMealFood(it.raw)) continue;
+    const product = normProduct(it.raw), k = fl.store.key + "|" + product, cur = best.get(k);
+    if (!cur || it.price < cur.price) best.set(k, { ...it, store: fl.store, product });
+  }
+  const cands = [...best.values()];
+  const before = fls.map(f => String(f.from || "").slice(0, 10)).filter(Boolean).sort()[0] || "";
+  let stats = {};
+  try { const r = await apiPrix("stats", { products: [...new Set(cands.map(c => c.product))].slice(0, 1500), before }); if (r.ok) stats = r.stats || {}; } catch(e){}
+  for (const c of cands){ const st = stats[c.product]; c.bestSeen = !!(st && st.n >= 3 && c.price <= Number(st.min)); }
+  // Quasi-doublons (« Carottes » et « Carottes ou oignons » au même prix, même magasin) : on garde le premier
+  const kept = [];
+  // Les « meilleur prix vu » passent en premier (ils peuvent avoir moins de 25 % de rabais), puis le plus gros rabais
+  for (const c of cands.filter(c => c.discount >= 25 || c.bestSeen).sort((a, b) => b.bestSeen - a.bestSeen || (b.discount || 0) - (a.discount || 0) || a.price - b.price)){
+    const w = new Set(c.product.split(" ").filter(x => x.length > 3));
+    if (kept.some(k => k.store.key === c.store.key && k.price === c.price && k.product.split(" ").some(x => w.has(x)))) continue;
+    kept.push(c); if (kept.length === 15) break;
+  }
+  // pool = tous les bons deals (pas seulement les 15 affichés), pour trouver mes repas en spécial
+  const pool = cands.filter(c => c.discount >= 25 || c.bestSeen);
+  return { list: kept, pool, to: fls.map(f => f.to).sort()[0] };
+}
+function bdRow(d){
+  const price = d.price.toFixed(2).replace(".", ",") + " $";
+  const z = zoomId({ store: d.store, name: d.name, price: price + (d.unit ? " " + d.unit : ""), meta: [d.discount ? `${d.discount} % de rabais` : "", d.bestSeen ? "Meilleur prix vu" : "", endText(d)].filter(Boolean).join(" · "), img: d.img, cat: d.cat, to: d.to });
+  return `<div class="deal zoomable" data-zoom="${z}">${d.img ? `<img src="${esc(d.img)}" alt="" loading="lazy">` : ""}<div class="dtxt">
+    <div class="dname"><span class="chip ${d.store.key}">${d.store.label}</span>${esc(d.name)}${d.discount >= 25 ? `<span class="off">−${d.discount} %</span>` : ""}</div>
+    ${d.bestSeen ? `<div class="bestseen">★ Meilleur prix vu</div>` : `<div class="dmeta">${esc(dealKind(d.raw))}</div>`}</div>
+    <div class="dprice">${price}${d.unit ? `<small>${esc(d.unit)}</small>` : ""}</div></div>`;
+}
+function renderBonsDeals(){
+  $("bdStores").innerHTML = STORES.map(s => `<button type="button" class="pill ${myStores.has(s.key) ? "on" : ""}" data-mystore="${s.key}" aria-pressed="${myStores.has(s.key)}">${s.label}</button>`).join("");
+  const st = bdState;
+  if (!st.list){ $("bdList").innerHTML = `<p class="empty">${st.error || "Je regarde les circulaires…"}</p>`; $("bdEnd").textContent = ""; renderMySpecial(); return; }
+  $("bdEnd").textContent = st.to ? endText({ to: st.to }) : "";
+  if (!st.list.length){ $("bdList").innerHTML = `<p class="empty">${myStores.size ? "Pas de bon deal d'aliments cette semaine dans tes magasins." : "Choisis au moins un magasin."}</p>`; return; }
+  const shown = st.all ? st.list : st.list.slice(0, 8);
+  $("bdList").innerHTML = `<section><div class="box">${shown.map(bdRow).join("")}</div></section>` +
+    (st.list.length > 8 ? `<div class="row"><button class="btn" type="button" id="bdMore" style="width:100%">${st.all ? "Voir moins" : `Voir les ${st.list.length} deals`}</button></div>` : "");
+}
+async function showBonsDeals(force){
+  if (!prefsLoaded) await loadPrefs();
+  const key = region + "|" + [...myStores].sort().join(",");
+  if (!force && bdState.key === key && bdState.list) return renderBonsDeals();
+  bdState = { key, list: null, all: false }; renderBonsDeals();
+  const r = await loadBonsDeals(); if (bdState.key !== key) return;
+  if (!r){ bdState.error = "Je n'arrive pas à rejoindre les circulaires. Vérifie ta connexion et réessaie."; return renderBonsDeals(); }
+  Object.assign(bdState, r); renderBonsDeals(); renderMySpecial(); renderIdeas();
+  // Les unités arrivent ensuite, sans bloquer l'affichage
+  const q = [...r.list];
+  await Promise.all([1, 2, 3, 4].map(async () => { while (q.length){ const d = q.shift(); d.unit = await findUnit(d); } }));
+  if (bdState.key === key) renderBonsDeals();
+}
+$("bdStores").addEventListener("click", e => { const b = e.target.closest("[data-mystore]"); if (!b) return;
+  const k = b.dataset.mystore; myStores.has(k) ? myStores.delete(k) : myStores.add(k);
+  showBonsDeals(); savePrefs({ stores: [...myStores] }); });
+$("bdList").addEventListener("click", e => { if (e.target.id === "bdMore"){ bdState.all = !bdState.all; renderBonsDeals(); } });
+
+/* ---------- Semaine : mes repas en spécial ---------- */
+// Ne redessine que si le contenu change (l'état revient aux 4 secondes : un toucher ne doit pas tomber dans le vide)
+function setHTML(id, html){ const el = $(id); if (el.dataset.html !== html){ el.innerHTML = html; el.dataset.html = html; } }
+// Le nom a court (« Bœuf haché ») se retrouve-t-il dans le nom b (« Bœuf haché maigre ») sans devenir
+// un autre produit? « Pommes » ≠ « Pommes de terre », « Beurre » ≠ « Beurre d'arachide » (même règle que atHome).
+// loose = le mot suffit (« Foie » trouvé dans « Foie de veau ») : pour les aliments à éviter
+// Position où le nom a commence dans b (-1 si absent)
+function namePos(a, b, loose){
+  const s = words(String(a).replace(/\([^)]*\)/g, " ")), l = words(String(b).replace(/\([^)]*\)/g, " "));
+  if (!s.length) return false;
+  for (let i = 0; i + s.length <= l.length; i++)
+    if (s.every((w, k) => l[i + k] === w) && (loose || !LINK.has(l[i + s.length]))) return i;
+  return -1;
+}
+const nameIn = (a, b, loose) => namePos(a, b, loose) >= 0;
+// Le spécial qui correspond le mieux à un ingrédient : « Poulet » → « Poitrines de poulet »
+// plutôt que « Bouillon de poulet »; seulement pour un aliment qui fait un repas
+function dealFor(ing, pool){
+  if (!isMealFood(ing)) return null;
+  const fr = d => d.raw.split(" | ")[0];
+  return pool.map(d => ({ d, pos: namePos(ing, fr(d)) })).filter(x => x.pos >= 0)
+    .sort((a, b) => a.pos - b.pos || fr(a.d).length - fr(b.d).length || a.d.price - b.d.price)[0]?.d || null;
+}
+// Repas à éviter : un ingrédient (ou le nom du repas) touche une allergie ou un aliment qu'on n'aime pas
+const avoids = m => [...(prefs.allergies || []), ...(prefs.dislikes || [])].some(x =>
+  nameIn(x, m.name, true) || (m.ingredients || []).some(i => nameIn(x, i.name, true)));
+function mealsInSpecial(pool){
+  const out = [];
+  for (const m of data.meals){
+    if (avoids(m)) continue;
+    const hits = [];
+    // Ingrédient principal = un aliment qui fait un repas (viande, poisson, légumes, fruits, fromage, pâtes, riz)
+    for (const ing of (m.ingredients || []).filter(i => isMealFood(i.name))){
+      const d = dealFor(ing.name, pool);
+      if (d) hits.push({ ing: ing.name, d });
+    }
+    if (hits.length) out.push({ meal: m, hits });
+  }
+  return out.sort((a, b) => b.hits.length - a.hits.length || norm(a.meal.name).localeCompare(norm(b.meal.name)));
+}
+function renderMySpecial(){
+  const pool = bdState.pool;
+  if (!pool){ setHTML("mySpecial", ""); $("mySpecialCount").textContent = ""; renderWeek(); return; }
+  const ms = mealsInSpecial(pool);
+  $("mySpecialCount").textContent = ms.length ? `${ms.length} repas` : "";
+  if (!data.meals.length){ setHTML("mySpecial", `<p class="empty">Ta banque de repas est vide. Ajoute des repas dans l'onglet « Repas ».</p>`); renderWeek(); return; }
+  if (!ms.length){ setHTML("mySpecial", `<p class="empty">Aucun repas de ta banque n'a un ingrédient principal en spécial cette semaine.</p>`); renderWeek(); return; }
+  setHTML("mySpecial", ms.map(({ meal, hits }) => `<div class="idea" data-mealid="${esc(meal.id)}"><h3>${esc(meal.name)}</h3>
+    <div class="why">${hits.map(h => `<div><span class="chip ${h.d.store.key}">${h.d.store.label}</span>${esc(h.ing)} <b>${h.d.price.toFixed(2).replace(".", ",")} $</b>${h.d.discount >= 25 ? ` · −${h.d.discount} %` : ""}${h.d.bestSeen ? " · meilleur prix vu" : ""}<br><i>${esc(h.d.name)}</i></div>`).join("")}</div>
+    <div class="row tight"><button class="btn pri sm" type="button" data-planmeal="${esc(meal.id)}">Choisir pour un soir</button></div></div>`).join(""));
+  renderWeek();
+}
+
+/* ---------- Préférences de la famille ---------- */
+let prefsDraft = null;
+const MINUTES = [30, 45, 60];
+function renderPrefs(){
+  const p = prefsDraft;
+  $("pPeople").value = p.people;
+  const tags = (k) => p[k].map((t, i) => `<span class="tag">${esc(t)}<button type="button" data-rm="${k}" data-i="${i}" aria-label="Retirer ${esc(t)}">×</button></span>`).join("");
+  $("pDislikes").innerHTML = tags("dislikes"); $("pAllergies").innerHTML = tags("allergies");
+  $("pMinutes").innerHTML = MINUTES.map(m => `<button type="button" class="pill ${p.max_minutes === m ? "on" : ""}" data-min="${m}">${m} min</button>`).join("");
+  $("pStores").innerHTML = STORES.map(s => `<button type="button" class="pill ${p.stores.includes(s.key) ? "on" : ""}" data-pstore="${s.key}">${s.label}</button>`).join("");
+}
+$("prefsOpen").onclick = async () => {
+  await loadPrefs(); // toujours la version la plus récente : un autre téléphone a peut-être changé quelque chose
+  if (!prefsLoaded){ toast("Pas de connexion. Réessaie."); return; }
+  prefsDraft = JSON.parse(JSON.stringify({ ...prefs, stores: [...myStores] }));
+  renderPrefs(); $("prefsSheet").hidden = false;
+};
+const closePrefs = () => { $("prefsSheet").hidden = true; prefsDraft = null; };
+$("prefsClose").onclick = closePrefs;
+$("prefsSheet").addEventListener("click", e => {
+  if (e.target === $("prefsSheet")) return closePrefs();
+  const t = e.target.closest("button"); if (!t || !prefsDraft) return; const p = prefsDraft;
+  if (t.dataset.people){ p.people = Math.min(20, Math.max(1, (parseInt($("pPeople").value, 10) || p.people) + Number(t.dataset.people))); }
+  else if (t.dataset.rm){ p[t.dataset.rm].splice(Number(t.dataset.i), 1); }
+  else if (t.dataset.addto){ const inp = t.dataset.addto === "dislikes" ? $("pDislikeIn") : $("pAllergyIn");
+    const v = inp.value.trim(); if (v && !p[t.dataset.addto].some(x => norm(x) === norm(v))) p[t.dataset.addto].push(v); inp.value = ""; }
+  else if (t.dataset.min){ p.max_minutes = Number(t.dataset.min); }
+  else if (t.dataset.pstore){ const i = p.stores.indexOf(t.dataset.pstore); i < 0 ? p.stores.push(t.dataset.pstore) : p.stores.splice(i, 1); }
+  else return;
+  renderPrefs();
+});
+// Entrée dans un champ « n'aime pas » ou « allergies » = Ajouter
+["pDislikeIn", "pAllergyIn"].forEach(id => $(id).addEventListener("keydown", e => { if (e.key === "Enter"){ e.preventDefault(); e.target.nextElementSibling.click(); } }));
+$("prefsForm").addEventListener("submit", async e => {
+  e.preventDefault(); if (!prefsDraft) return;
+  prefsDraft.people = Math.min(20, Math.max(1, parseInt($("pPeople").value, 10) || prefsDraft.people));
+  const d = prefsDraft; myStores = new Set(d.stores);
+  closePrefs();
+  if (await savePrefs({ people: d.people, dislikes: d.dislikes, allergies: d.allergies, max_minutes: d.max_minutes, stores: d.stores })){ toast("Préférences enregistrées"); showBonsDeals(); renderMySpecial(); }
+});
+
+/* ---------- Semaine : le plan (un souper par soir, partagé) ---------- */
+const apiSemaine = (action, args = {}) => rpc("api_semaine", { p_code: code, p_action: action, p_args: args });
+const DAYS = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi", "Dimanche"];
+let plan = [], planBusy = 0, planSeq = 0, weekRunning = false;
+// Déconnexion : rien de la famille précédente ne doit rester
+function resetWeek(){ plan = []; planSeq++; ideas = []; iaLeft = null; try { localStorage.removeItem(IDEAS_KEY); } catch(e){} prefsLoaded = false; prefsSeq++; bdState = { key: "", list: null, all: false }; $("weekSum").innerHTML = "";
+  prefs = { people: 4, dislikes: [], allergies: [], max_minutes: 45, stores: ["metro", "iga"] }; myStores = new Set(prefs.stores); }
+async function loadPlan(){
+  if (planBusy) return;
+  const my = planSeq;
+  try { const r = await apiSemaine("get"); if (r.ok && !planBusy && my === planSeq){ plan = r.plan; renderWeek(); } } catch(e){}
+}
+setInterval(() => { if (curTab === "week" && !document.hidden && !$("app").hidden) loadPlan(); }, 8000);
+const mealById = id => data.meals.find(m => m.id === id);
+const planOf = day => { const p = plan.find(x => x.day === day); return p ? mealById(p.meal_id) : null; };
+async function setDay(day, mealId){
+  plan = plan.filter(x => x.day !== day); if (mealId) plan.push({ day, meal_id: mealId }); renderWeek();
+  planBusy++; planSeq++;
+  try { const r = await apiSemaine("set", { day, meal_id: mealId || "" }); if (r.ok) plan = r.plan; else toast("Pas pu enregistrer. Réessaie."); }
+  catch(e){ toast("Pas de connexion. Réessaie."); }
+  finally { planBusy--; renderWeek(); }
+}
+function renderWeek(){
+  if (!$("week")) return;
+  const sp = bdState.pool ? new Map(mealsInSpecial(bdState.pool).map(x => [x.meal.id, x.hits.length])) : new Map();
+  const n = DAYS.filter((_, d) => planOf(d)).length;
+  $("planCount").textContent = `${n} souper${n > 1 ? "s" : ""} sur 7 · partagé`;
+  setHTML("week", DAYS.map((name, d) => { const m = planOf(d), k = m && sp.get(m.id);
+    return `<div class="day ${m ? "" : "vide"}"><div class="d">${name.slice(0, 3)}${d >= 5 ? "<small>fin de sem.</small>" : ""}</div>
+      <div class="m">${m ? `<b>${esc(m.name)}</b>${k ? `<span class="sp">${k} en spécial</span>` : `<span>${(m.ingredients || []).length} ingrédients</span>`}` : "Rien de prévu"}</div>
+      <button class="btn sm ${m ? "ghost" : ""}" type="button" data-pickday="${d}">${m ? "Changer" : "+ Choisir"}</button></div>`; }).join(""));
+  $("weekToList").disabled = !n || weekRunning;
+}
+/* Feuille : choisir un repas pour un soir (pickDay) ou un soir pour un repas (pickMeal) */
+let planPick = null;
+function renderPlanSheet(){
+  const pk = planPick; if (!pk) return;
+  if (pk.meal){
+    const m = mealById(pk.meal); $("planTitle").textContent = m ? m.name : "Quel soir?"; $("planQ").hidden = true;
+    $("planBody").innerHTML = `<p class="hint" style="margin-top:4px">Quel soir?</p><div class="pickday">${DAYS.map((name, d) => { const cur = planOf(d);
+      return `<button class="btn" type="button" data-setday="${d}"><b>${name}</b><span>${cur ? esc(cur.name) : "libre"}</span></button>`; }).join("")}</div>`;
+    return;
+  }
+  $("planTitle").textContent = DAYS[pk.day]; $("planQ").hidden = false;
+  const q = norm($("planQ").value), ok = m => !q || norm(m.name).includes(q);
+  const special = bdState.pool ? mealsInSpecial(bdState.pool).filter(x => ok(x.meal)) : [];
+  const spIds = new Set(special.map(x => x.meal.id));
+  const rest = [...data.meals].filter(m => !spIds.has(m.id) && !avoids(m) && ok(m)).sort((a, b) => norm(a.name).localeCompare(norm(b.name)));
+  const row = (m, sub, pri) => `<li><span class="name" style="flex:1;padding:12px 0"><b>${esc(m.name)}</b>${sub ? `<span class="for">${esc(sub)}</span>` : ""}</span><button class="btn sm ${pri ? "pri" : ""}" type="button" data-setmeal="${esc(m.id)}">Choisir</button></li>`;
+  $("planBody").innerHTML = (special.length ? `<section><h2><span>En spécial cette semaine</span></h2><ul class="box">${special.map(x => row(x.meal, x.hits.map(h => h.ing).join(", ") + " en spécial", true)).join("")}</ul></section>` : "") +
+    (rest.length ? `<section><h2><span>Ma banque de repas</span></h2><ul class="box">${rest.map(m => row(m, "", false)).join("")}</ul></section>` : "") +
+    (!special.length && !rest.length ? `<p class="empty">${data.meals.length ? "Aucun repas ne correspond." : "Ta banque de repas est vide. Ajoute des repas dans l'onglet « Repas »."}</p>` : "") +
+    (planOf(pk.day) ? `<div class="row tight"><button class="btn ghost" type="button" data-setmeal="" style="width:100%">Laisser ce soir vide</button></div>` : "");
+}
+function openPlan(pk){ planPick = pk; $("planQ").value = ""; renderPlanSheet(); $("planSheet").hidden = false; }
+const closePlan = () => { $("planSheet").hidden = true; planPick = null; };
+$("planClose").onclick = closePlan;
+$("planQ").addEventListener("input", renderPlanSheet);
+$("planSheet").addEventListener("click", e => {
+  if (e.target === $("planSheet")) return closePlan();
+  const b = e.target.closest("button"); if (!b || !planPick) return;
+  if (b.dataset.setday !== undefined){ const m = mealById(planPick.meal); setDay(Number(b.dataset.setday), planPick.meal); closePlan(); toast(`${m ? m.name : "Repas"} : ${DAYS[Number(b.dataset.setday)].toLowerCase()}`); }
+  else if (b.dataset.setmeal !== undefined){ setDay(planPick.day, b.dataset.setmeal); closePlan(); }
+});
+$("week").addEventListener("click", e => { const b = e.target.closest("[data-pickday]"); if (b) openPlan({ day: Number(b.dataset.pickday) }); });
+$("mySpecial").addEventListener("click", e => { const b = e.target.closest("[data-planmeal]"); if (b) openPlan({ meal: b.dataset.planmeal }); });
+
+/* Ajouter la semaine à la liste : api_repas pour chaque ingrédient (lien avec le repas, doublons regroupés),
+   api_special pour garder magasin et prix, et on saute ce qui est marqué « J'en ai » */
+const priceFr = n => n.toFixed(2).replace(".", ",") + " $";
+$("weekToList").onclick = async () => {
+  const days = DAYS.map((_, d) => planOf(d)).filter(Boolean); if (!days.length || weekRunning) return;
+  weekRunning = true; const btn = $("weekToList"); btn.disabled = true; btn.textContent = "J'ajoute…"; $("weekSum").innerHTML = "";
+  const pool = bdState.pool || [], seen = new Map(), atHomeSet = new Set();
+  let added = 0, dup = 0, home = 0;
+  for (const m of days) for (const ing of (m.ingredients || [])){
+    const k = norm(ing.name);
+    if (atHomeSet.has(k)) continue;
+    if (seen.has(k)){ await addToList(ing.name, ing.qty, ing.cat, { id: m.id, name: m.name }); continue; } // même ingrédient, 2e repas : regroupé
+    if (atHome(ing.name)){ home++; atHomeSet.add(k); continue; }
+    const d = dealFor(ing.name, pool);
+    if (await addToList(ing.name, ing.qty, ing.cat, { id: m.id, name: m.name })) added++; else dup++;
+    if (d) await addToList(ing.name, "", ing.cat, null, { store: d.store.key, label: d.store.label, price: priceFr(d.price) + (d.unit ? " " + d.unit : ""), to: d.to || "" });
+    seen.set(k, d);
+  }
+  const deals = [...seen.values()].filter(Boolean);
+  const total = deals.reduce((t, d) => t + d.price, 0);
+  // Économie = prix régulier − prix en spécial, quand Flipp donne le % de rabais
+  const eco = deals.reduce((t, d) => t + (d.discount > 0 && d.discount < 100 ? d.price * d.discount / (100 - d.discount) : 0), 0);
+  const noPrice = [...seen.values()].filter(v => !v).length;
+  weekRunning = false; btn.textContent = "Ajouter la semaine à la liste"; renderWeek();
+  $("weekSum").innerHTML = `<div class="sum"><b>✓ Ajouté à la liste</b>
+    <div class="big"><div><b>${priceFr(total)}</b><span>total des ${deals.length} articles en spécial</span></div><div class="eco"><b>${priceFr(eco)}</b><span>économie grâce aux spéciaux</span></div></div>
+    <p>${added} article${added > 1 ? "s" : ""} ajouté${added > 1 ? "s" : ""} · ${home} déjà à la maison (« J'en ai ») · ${dup} déjà sur la liste · ${noPrice} sans prix connu.
+    Prix de la circulaire, à l'unité affichée (ex. /lb) : c'est une estimation.</p></div>`;
+};
+let weekNewT = null;
+$("weekNew").onclick = async () => {
+  const b = $("weekNew");
+  if (!b.dataset.sure){ b.dataset.sure = "1"; b.textContent = "Oui, vider le plan de la semaine"; b.classList.add("warnb"); clearTimeout(weekNewT);
+    weekNewT = setTimeout(() => { delete b.dataset.sure; b.textContent = "Nouvelle semaine"; b.classList.remove("warnb"); }, 5000); return; }
+  delete b.dataset.sure; b.textContent = "Nouvelle semaine"; b.classList.remove("warnb");
+  plan = []; $("weekSum").innerHTML = ""; renderWeek(); planBusy++; planSeq++;
+  let ok = false;
+  try { const r = await apiSemaine("clear"); ok = r.ok; if (r.ok) plan = r.plan; } catch(e){}
+  finally { planBusy--; renderWeek(); }
+  if (ok) toast("Plan vidé. Bonne nouvelle semaine!"); else { toast("Pas pu vider le plan. Réessaie."); loadPlan(); }
+};
+
+/* ---------- Semaine : nouvelles idées (IA, par l'Edge Function « recettes ») ---------- */
+// La clé Anthropic reste dans les secrets Supabase : le site n'appelle que la fonction, avec le code de famille
+const IDEAS_KEY = "epicerie-idees";
+let ideas = (() => { try { return JSON.parse(localStorage.getItem(IDEAS_KEY)) || []; } catch(e){ return []; } })();
+let iaLeft = null, iaWeekend = false, iaBusy = false;
+const IA_ERR = { mauvais_code: "Le code de famille n'est pas reconnu.", limite: "Vous avez utilisé vos 10 essais d'aujourd'hui. Revenez demain!",
+  pas_de_deals: "Il faut des bons deals pour proposer des recettes.", cle_manquante: "La clé de l'IA n'est pas encore installée dans Supabase.",
+  ia_indisponible: "L'IA ne répond pas pour l'instant. Réessaie dans une minute.", ia_refus: "L'IA n'a pas voulu répondre. Réessaie.",
+  ia_json: "La réponse de l'IA était illisible. Réessaie.", ia_vide: "Aucune recette ne respectait vos préférences. Réessaie.", ia_coupee: "La réponse était trop longue. Réessaie." };
+async function loadIaQuota(){
+  try { const r = await rpc("api_ia", { p_code: code, p_action: "quota", p_args: {} }); if (r.ok){ iaLeft = r.left; renderIdeas(); } } catch(e){}
+}
+function renderIdeas(){
+  $("iaLeft").textContent = iaLeft == null ? "" : `${iaLeft} essai${iaLeft > 1 ? "s" : ""} aujourd'hui`;
+  $("iaWeekend").classList.toggle("on", iaWeekend); $("iaWeekend").setAttribute("aria-pressed", iaWeekend);
+  $("iaGo").disabled = iaBusy || iaLeft === 0 || !bdState.list || !bdState.list.length;
+  if (iaLeft === 0 && !iaBusy) $("iaMsg").textContent = IA_ERR.limite;
+  $("iaGo").textContent = iaBusy ? "Je cherche des idées… (environ 30 secondes)" : "✨ Proposer des recettes";
+  const pool = bdState.pool || [];
+  setHTML("iaList", ideas.map((r, k) => {
+    const saved = r.mealId && mealById(r.mealId);
+    const sp = r.ingredients.map(i => ({ i, d: dealFor(i.nom, pool) })).filter(x => x.d);
+    return `<div class="idea"><h3>${esc(r.nom)}</h3><div class="meta">${r.minutes} min · ${r.portions} portions</div>
+      ${sp.length ? `<div class="why">${sp.map(({ i, d }) => `<div><span class="chip ${d.store.key}">${d.store.label}</span>${esc(i.nom)} <b>${priceFr(d.price)}${d.unit ? " " + esc(d.unit) : ""}</b>${d.discount >= 25 ? ` · −${d.discount} %` : ""}</div>`).join("")}</div>` : ""}
+      <details><summary>Ingrédients et étapes</summary>
+        <ul>${r.ingredients.map(i => `<li>${esc(i.quantite ? i.quantite + " — " : "")}${esc(i.nom)}</li>`).join("")}</ul>
+        <ol>${r.etapes.map(e => `<li>${esc(e)}</li>`).join("")}</ol></details>
+      <div class="row tight"><button class="btn pri sm" type="button" data-ideaplan="${k}">Choisir pour un soir</button>
+      ${saved ? `<span class="ok">✓ Dans ma banque</span>` : `<button class="btn sm" type="button" data-ideasave="${k}">Garder dans ma banque</button>`}</div></div>`;
+  }).join(""));
+}
+// Garde une idée dans la banque de repas (même format que le formulaire Repas) et rend l'id du repas
+async function keepIdea(k){
+  const r = ideas[k]; if (!r) return null;
+  if (r.mealId && mealById(r.mealId)) return r.mealId;
+  const before = new Set(data.meals.map(m => m.id));
+  const res = await act("meal_save", { id: "", name: r.nom,
+    ingredients: r.ingredients.map(i => ({ name: i.nom, qty: i.quantite, cat: guess(i.nom) })),
+    recipe: `${r.minutes} min · ${r.portions} portions\n\n${r.etapes.map((e, n) => `${n + 1}. ${e}`).join("\n")}` });
+  if (!res.ok) return null;
+  await refresh();
+  const m = data.meals.find(x => !before.has(x.id) && x.name === r.nom); if (!m) return null;
+  r.mealId = m.id; try { localStorage.setItem(IDEAS_KEY, JSON.stringify(ideas)); } catch(e){}
+  return m.id;
+}
+$("iaWeekend").onclick = () => { iaWeekend = !iaWeekend; renderIdeas(); };
+$("iaGo").onclick = async () => {
+  if (iaBusy || !bdState.list) return;
+  iaBusy = true; $("iaMsg").textContent = "À partir des bons deals et de vos préférences."; renderIdeas();
+  const deals = bdState.list.map(d => ({ nom: d.name, magasin: d.store.label, prix: priceFr(d.price) + (d.unit ? " " + d.unit : ""), rabais: d.discount || 0 }));
+  let r = null;
+  try {
+    const res = await fetch(`${SUPABASE_URL}/functions/v1/recettes`, { method: "POST",
+      headers: { "Content-Type": "application/json", apikey: SUPABASE_KEY },
+      body: JSON.stringify({ code, deals, fin_de_semaine: iaWeekend }) });
+    r = await res.json().catch(() => null);
+  } catch(e){}
+  iaBusy = false;
+  if (!r || !r.ok){ $("iaMsg").textContent = (r && IA_ERR[r.error]) || "Pas de connexion. Réessaie."; if (r && r.error === "limite") iaLeft = 0; renderIdeas(); return; }
+  ideas = r.recettes; iaLeft = r.left;
+  try { localStorage.setItem(IDEAS_KEY, JSON.stringify(ideas)); } catch(e){}
+  $("iaMsg").textContent = `${ideas.length} idée${ideas.length > 1 ? "s" : ""} pour vous.`; renderIdeas();
+};
+$("iaList").addEventListener("click", async e => {
+  const b = e.target.closest("button"); if (!b) return;
+  if (b.dataset.ideasave !== undefined){ b.disabled = true; const id = await keepIdea(Number(b.dataset.ideasave));
+    toast(id ? "Gardé dans ta banque de repas" : "Pas pu enregistrer. Réessaie."); renderIdeas(); }
+  if (b.dataset.ideaplan !== undefined){ b.disabled = true; const id = await keepIdea(Number(b.dataset.ideaplan)); b.disabled = false;
+    if (id){ renderIdeas(); openPlan({ meal: id }); } else toast("Pas pu enregistrer. Réessaie."); }
+});
