@@ -34,6 +34,8 @@ const OFF_MAP = [
 
 const $ = id => document.getElementById(id);
 const norm = s => String(s ?? "").toLowerCase().replace(/œ/g, "oe").replace(/æ/g, "ae").normalize("NFD").replace(/[̀-ͯ]/g, "").trim();
+// Même article au singulier ou au pluriel : « Oignons » = « Oignon » (mais « Lait 1 % » ≠ « Lait 2 % »)
+const nameKey = s => norm(s).split(/\s+/).map(w => w.length > 3 ? w.replace(/(s|x)$/, "") : w).join(" ");
 const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 function guess(name){ const n = norm(name); for (const c in GUESS) for (const w of GUESS[c].split(" ")) if (w.length > 2 && n.includes(norm(w))) return c; return "Autre"; }
 let toastT; function toast(t){ const el = $("toast"); el.textContent = t; el.hidden = false; clearTimeout(toastT); toastT = setTimeout(() => el.hidden = true, 2800); }
@@ -83,7 +85,7 @@ async function act(action, args, optimistic, fn = api){
 // meal (optionnel) = { id, name } : retient pour quel repas l'article est sur la liste
 // deal (optionnel) = { store, label, price, to } : retient où l'acheter en spécial
 async function addToList(name, qty, cat, meal, deal){
-  const dup = data.items.find(i => !i.done && norm(i.name) === norm(name));
+  const dup = data.items.find(i => !i.done && nameKey(i.name) === nameKey(name));
   // Le serveur compare sans tenir compte des majuscules mais AVEC les accents : on lui donne le nom exact déjà sur la liste
   if (dup) name = dup.name;
   if (deal){
@@ -1040,7 +1042,7 @@ $("weekToList").onclick = async () => {
   const pool = bdState.pool || [], seen = new Map(), atHomeSet = new Set();
   let added = 0, dup = 0, home = 0; const pantry = new Set();
   for (const m of days) for (const ing of (m.ingredients || [])){
-    const k = norm(ing.name);
+    const k = nameKey(ing.name);
     if (atHomeSet.has(k)) continue;
     if (isPantry(ing.name, ing.qty)){ pantry.add(ing.name); continue; }
     if (seen.has(k)){ await addToList(ing.name, ing.qty, ing.cat, { id: m.id, name: m.name }); continue; } // même ingrédient, 2e repas : regroupé
