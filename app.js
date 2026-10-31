@@ -810,7 +810,8 @@ async function loadBonsDeals(){
   for (const fl of fls) for (const it of fl.items){
     if (it.price == null || !isMealFood(it.raw)) continue;
     const product = normProduct(it.raw), k = fl.store.key + "|" + product, cur = best.get(k);
-    if (!cur || it.price < cur.price) best.set(k, { ...it, store: fl.store, product });
+    // Même produit deux fois dans la circulaire (ex. « Pommes de terre » 1,99 $ sans rabais et à −60 %) : le moins cher, puis le plus gros rabais
+    if (!cur || it.price < cur.price || (it.price === cur.price && it.discount > cur.discount)) best.set(k, { ...it, store: fl.store, product });
   }
   const cands = [...best.values()];
   const before = fls.map(f => String(f.from || "").slice(0, 10)).filter(Boolean).sort()[0] || "";
@@ -880,14 +881,18 @@ function namePos(a, b, loose){
   return -1;
 }
 const nameIn = (a, b, loose) => namePos(a, b, loose) >= 0;
-// Le spécial qui correspond le mieux à un ingrédient : « Poulet » → « Poitrines de poulet »
-// plutôt que « Bouillon de poulet »; seulement pour un aliment qui fait un repas
+// Le spécial pour un ingrédient : le moins cher parmi ceux qui le contiennent (« Oignon » → « Carottes ou oignons
+// jaunes » à 0,99 $ plutôt qu'à 1,99 $). Le bassin ne contient déjà que des aliments qui font un repas
+// (pas de bouillon ni de pâte de tomates). À prix égal : le nom qui commence par l'ingrédient, puis le plus court.
 function dealFor(ing, pool){
   if (!isMealFood(ing)) return null;
   const fr = d => d.raw.split(" | ")[0];
   return pool.map(d => ({ d, pos: namePos(ing, fr(d)) })).filter(x => x.pos >= 0)
-    .sort((a, b) => a.pos - b.pos || fr(a.d).length - fr(b.d).length || a.d.price - b.d.price)[0]?.d || null;
+    .sort((a, b) => a.d.price - b.d.price || a.pos - b.pos || fr(a.d).length - fr(b.d).length)[0]?.d || null;
 }
+// Ce qu'on a toujours à la maison : pas besoin de l'acheter pour une recette (sel, poivre, huile, eau, « au goût »)
+const isPantry = (name, qty) => /^(sel|poivre|sel et poivre|sel poivre|eau|huile( .*)?)$/.test(norm(name).replace(/[^a-z ]/g, " ").replace(/\s+/g, " ").trim())
+  || /\bau gout\b/.test(norm(qty));
 // Repas à éviter : un ingrédient (ou le nom du repas) touche une allergie ou un aliment qu'on n'aime pas
 const avoids = m => [...(prefs.allergies || []), ...(prefs.dislikes || [])].some(x =>
   nameIn(x, m.name, true) || (m.ingredients || []).some(i => nameIn(x, i.name, true)));
@@ -1033,10 +1038,11 @@ $("weekToList").onclick = async () => {
   const days = DAYS.map((_, d) => planOf(d)).filter(Boolean); if (!days.length || weekRunning) return;
   weekRunning = true; const btn = $("weekToList"); btn.disabled = true; btn.textContent = "J'ajoute…"; $("weekSum").innerHTML = "";
   const pool = bdState.pool || [], seen = new Map(), atHomeSet = new Set();
-  let added = 0, dup = 0, home = 0;
+  let added = 0, dup = 0, home = 0; const pantry = new Set();
   for (const m of days) for (const ing of (m.ingredients || [])){
     const k = norm(ing.name);
     if (atHomeSet.has(k)) continue;
+    if (isPantry(ing.name, ing.qty)){ pantry.add(ing.name); continue; }
     if (seen.has(k)){ await addToList(ing.name, ing.qty, ing.cat, { id: m.id, name: m.name }); continue; } // même ingrédient, 2e repas : regroupé
     if (atHome(ing.name)){ home++; atHomeSet.add(k); continue; }
     const d = dealFor(ing.name, pool);
@@ -1052,7 +1058,7 @@ $("weekToList").onclick = async () => {
   weekRunning = false; btn.textContent = "Ajouter la semaine à la liste"; renderWeek();
   $("weekSum").innerHTML = `<div class="sum"><b>✓ Ajouté à la liste</b>
     <div class="big"><div><b>${priceFr(total)}</b><span>total des ${deals.length} articles en spécial</span></div><div class="eco"><b>${priceFr(eco)}</b><span>économie grâce aux spéciaux</span></div></div>
-    <p>${added} article${added > 1 ? "s" : ""} ajouté${added > 1 ? "s" : ""} · ${home} déjà à la maison (« J'en ai ») · ${dup} déjà sur la liste · ${noPrice} sans prix connu.
+    <p>${added} article${added > 1 ? "s" : ""} ajouté${added > 1 ? "s" : ""} · ${home} déjà à la maison (« J'en ai ») · ${dup} déjà sur la liste · ${noPrice} sans prix connu.${pantry.size ? `<br>Pas ajouté, on l'a toujours : ${esc([...pantry].join(", "))}.` : ""}
     Prix de la circulaire, à l'unité affichée (ex. /lb) : c'est une estimation.</p></div>`;
 };
 let weekNewT = null;
